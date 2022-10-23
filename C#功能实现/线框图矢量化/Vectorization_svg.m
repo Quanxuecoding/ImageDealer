@@ -1,10 +1,11 @@
-function Vectorization_svg(inputPath)
+function Vectorization_svg(inputPath, colornum)
 %Read_image();%读取图像
+%Colornum为保留图像色彩数
 filename_svg = 'res.svg';%结果保存
 %inputPath = 'v2.png';
 
 %读取图像
-[f, map, ~] = imread(inputPath);
+[f, ~, ~] = imread(inputPath);
 image_size = size(f);
 
 %二维图转化为三维
@@ -22,29 +23,35 @@ Color = 256 * Color + uint32(f(:, :, 3));
 Color = nnz(diff(sort(Color(:)))) + 1;
 
 %输出的颜色数量
-Colornum = 27;
-figure, imshow(f); title('原图');
+
+Colornum = colornum;
+%figure, imshow(f); title('原图');
 
 %中值滤波，如果图像简单，则不进行
 if Color > 10000
     f_Origin = img_medfilt(f, 5);
 else
-     f_Origin = f;
+    f_Origin = f;
 end
-figure, imshow(f_Origin); title('中值滤波后的图像');
+%figure, imshow(f_Origin); title('中值滤波后的图像');
 %f_Origin = f;
 
+
+
 %颜色量化
-TotalPixels = image_size(1) * image_size(2);
+%TotalPixels = image_size(1) * image_size(2);
 [X, camp] = rgb2ind(f_Origin, Colornum, 'nodither');
 
 %去除孤立像素
 X = Del_IsolatedPixel(X);
-%X = Del_IsolatedPixel(X);
-figure, imshow(ind2rgb(X, camp)); title('去除孤立像素后');
+X = Del_IsolatedPixel(X);
+%figure, imshow(ind2rgb(X, camp)); title('去除孤立像素后');
+
+figure,imshow(ind2rgb(X, camp)); title('预览图');
 
 %对每一种颜色进行分割，保存轮廓与颜色信息
 temp = 0;
+PolySave = struct('AreaX', {}, 'AreaY', {}, 'Color', {}, 'AreaSum', {});
 for k = 1: size(camp, 1)
     BW_k = (X == (k - 1));%索引对应的分别为0到(N-1)，所以要减1
     C_BW_K = bwconncomp(BW_k);%进行区域分割识别
@@ -67,7 +74,7 @@ end
 
 %按照面积排序
 N_Polygon = numel(PolySave);
-Area_Max2Min = zeros(N_Polygon, 1);
+%Area_Max2Min = zeros(N_Polygon, 1);
 Area_List = zeros(N_Polygon,1);
 for k = 1: N_Polygon
     Area_List(k) = PolySave(k).AreaSum;%提取出面积
@@ -92,9 +99,24 @@ for k = 1: N_Polygon
     end
 end
 
+%模拟利用多边形绘制矢量图（实际结果图）
+figure()
+set(gca,'YDir','reverse');
+xlim([1,image_size(2)]);ylim([1,image_size(1)]);
+axis equal
+hold on
+for k=1:N_Polygon
+    ID_k=Area_Max2Min(k);
+    fill(PolySave(ID_k).AreaY,PolySave(ID_k).AreaX,PolySave(ID_k).Color,'EdgeColor','none')
+end
+hold off
+
+
+
+
 %创建文件
 f_id = fopen(filename_svg, 'w');
-s=['<svg width="', num2str(image_size(1)), '" height="', num2str(image_size(1)), '">'];
+s=['<svg width="', num2str(image_size(2)), '" height="', num2str(image_size(1)), '">'];
 fprintf(f_id, '%s \r\n', s);
 %中间添加各个多边形
 for k = 1: N_Polygon
@@ -123,7 +145,7 @@ s = ['</svg>'];
 fprintf(f_id,'%s \r\n', s);
 fclose(f_id);
 
-
+end
 
 function img = img_medfilt(I, windows)
 %图片的中值滤波
@@ -142,9 +164,9 @@ hei = size(X, 1);
 wid = size(X, 2);
 num = hei * wid;%图像的像素总数
 %X=double(X);不能double，浮点数从1索引，整数从0索引，不一样
-X2 = NaN(hei + 2, wid + 2);%X2只用于检索
+X2 = NaN(hei + 2, wid + 2);%X2只用于检索;
 X2(2: end - 1, 2: end - 1) = X;
-img = X;%X3只用于更改
+img = X;%img只用于更改
 for k = 1: num
     [k1, k2] = ind2sub([hei, wid], k);
     k1 = k1 + 1;k2 = k2 + 1;%由于X2在周围加了一圈，所以索引值也要加1
@@ -224,5 +246,4 @@ for k = 1: N - 1
 end
 xE = x3;
 yE = y3;
-end
 end
